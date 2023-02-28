@@ -1,0 +1,38 @@
+{
+    "name": "@erkoware/cached-disk-foal",
+    "version": "0.1.0",
+    "description": "Cached Disk for FoalTS",
+    "main": "index.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/erkoware/cached-disk-foal.git"
+    },
+    "keywords": [
+        "cache",
+        "foalts",
+        "file"
+    ],
+    "author": "l0tze",
+    "license": "ISC",
+    "bugs": {
+        "url": "https://github.com/erkoware/cached-disk-foal/issues"
+    },
+    "homepage": "https://github.com/erkoware/cached-disk-foal#readme",
+    "devDependencies": {
+        "@types/node": "^18.14.2",
+        "eslint": "8.35.0",
+        "typescript": "^4.9.5",
+        "prettier": "2.8.4",
+        "@typescript-eslint/eslint-plugin": "5.53.0",
+        "@typescript-eslint/parser": "5.53.0",
+        "eslint-config-prettier": "8.6.0",
+        "eslint-plugin-prettier": "4.2.1",
+        "eslint-plugin-node": "11.1.0"
+    },
+    "dependencies": {
+        "@foal/storage": "^3.1.0"
+    }
+}
