@@ -5,9 +5,9 @@ import { Readable } from 'stream';
 type Type<C extends 'buffer' | 'stream'> = C extends 'buffer' ? Buffer : C extends 'stream' ? Readable : never;
 export declare abstract class CachedDisk<D extends Disk> extends Disk {
     protected abstract disk: D;
-    private cache;
-    private size;
     private isCleaning;
+    private db;
+    boot(): void;
     write(dirname: string, content: Buffer | Readable, options?: {
         name?: string | undefined;
     } | {
