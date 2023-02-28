@@ -2,9 +2,10 @@
     "name": "@erkoware/cached-disk-foal",
     "version": "0.1.0",
     "description": "Cached Disk for FoalTS",
-    "main": "index.js",
+    "main": "lib/index.js",
     "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1"
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "build": "tsc"
     },
     "repository": {
         "type": "git",
@@ -21,6 +22,9 @@
         "url": "https://github.com/erkoware/cached-disk-foal/issues"
     },
     "homepage": "https://github.com/erkoware/cached-disk-foal#readme",
+    "engines": {
+        "node": ">=16.0.0"
+    },
     "devDependencies": {
         "@types/node": "^18.14.2",
         "eslint": "8.35.0",
@@ -33,6 +37,7 @@
         "eslint-plugin-node": "11.1.0"
     },
     "dependencies": {
-        "@foal/storage": "^3.1.0"
+        "@foal/core": "^3.0.0",
+        "@foal/storage": "^3.0.0"
     }
 }
