@@ -25,7 +25,8 @@ export abstract class CachedDisk<D extends Disk> extends Disk {
         this.db.exec(
             'CREATE TABLE IF NOT EXISTS cache (path TEXT PRIMARY KEY, cachedPath TEXT, size INTEGER, lastAccess INTEGER)'
         );
-        this.db.exec('CREATE TABLE IF NOT EXISTS cacheSize (size INTEGER)');
+        this.db.exec('CREATE TABLE IF NOT EXISTS cacheSize (id NUMBER PRIMARY KEY, size INTEGER)');
+        this.db.exec('INSERT OR IGNORE INTO cacheSize VALUES (1, 0)');
     }
 
     write(
@@ -119,7 +120,7 @@ export abstract class CachedDisk<D extends Disk> extends Disk {
 
         if (
             !!this.isCleaning &&
-            (this.db.prepare('SELECT * FROM size').get() as number) + size >
+            (this.db.prepare('SELECT size FROM cacheSize').get() as number) + size >
                 Config.get('cache.maxSize', 'number', 1000000000)
         ) {
             this.cleanCache().catch(() => {
@@ -145,7 +146,10 @@ export abstract class CachedDisk<D extends Disk> extends Disk {
         if (this.isCleaning) return;
         this.isCleaning = true;
 
-        while (this.db.prepare('SELECT * FROM size').get() > Config.get('cache.maxSize', 'number', 1000000000) * 0.75) {
+        while (
+            (this.db.prepare('SELECT size FROM cacheSize').get() as number) >
+            Config.get('cache.maxSize', 'number', 1000000000) * 0.75
+        ) {
             const toDelete = this.db.prepare('SELECT * FROM cache ORDER BY lastAccess ASC LIMIT 1').get() as CacheEntry;
             if (!toDelete) break;
             await promisify(unlink)(toDelete.cachedPath);
