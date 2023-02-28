@@ -1,5 +1,6 @@
 import { Config } from '@foal/core';
 import { Disk } from '@foal/storage';
+import Database = require('better-sqlite3');
 import { randomUUID } from 'crypto';
 import { createReadStream, createWriteStream, readFile, stat, unlink, writeFile } from 'fs';
 import { join } from 'path';
@@ -7,13 +8,25 @@ import { pipeline, Readable } from 'stream';
 import { promisify } from 'util';
 
 type Type<C extends 'buffer' | 'stream'> = C extends 'buffer' ? Buffer : C extends 'stream' ? Readable : never;
+type CacheEntry = { path: string; cachedPath: string; size: number; lastAccess: number };
 
 export abstract class CachedDisk<D extends Disk> extends Disk {
     protected abstract disk: D;
 
+    /*
     private cache: { [path: string]: { cachedPath: string; size: number; lastAccess: number } } = {};
     private size = 0;
+    */
     private isCleaning = false;
+    private db = new Database('cache/cache.db');
+
+    boot() {
+        this.db.pragma('journal_mode = WAL');
+        this.db.exec(
+            'CREATE TABLE IF NOT EXISTS cache (path TEXT PRIMARY KEY, cachedPath TEXT, size INTEGER, lastAccess INTEGER)'
+        );
+        this.db.exec('CREATE TABLE IF NOT EXISTS cacheSize (size INTEGER)');
+    }
 
     write(
         dirname: string,
@@ -37,38 +50,48 @@ export abstract class CachedDisk<D extends Disk> extends Disk {
     }
 
     delete(path: string): Promise<void> {
-        if (this.isCached(path)) {
-            void promisify(unlink)(this.cache[path].cachedPath);
-            this.size -= this.cache[path].size;
-            delete this.cache[path];
+        const cacheEntry = this.isCached(path);
+        if (cacheEntry) {
+            void promisify(unlink)(cacheEntry.cachedPath).catch(() => {});
+            this.db.prepare('DELETE FROM cache WHERE path = ?').run(path);
+            this.db.prepare('UPDATE cacheSize SET size = size - ?').run(cacheEntry.size);
         }
         return this.disk.delete(path);
     }
 
-    private isCached(path: string): boolean {
-        return !!this.cache[path];
+    private isCached(path: string): CacheEntry | false {
+        return (this.db.prepare('SELECT * FROM cache WHERE path = ?').get(path) as CacheEntry) ?? false;
     }
 
     private async getFromCache<C extends 'buffer' | 'stream'>(
         path: string,
         content: C
     ): Promise<{ file: Type<C>; size: number }> {
+        const cacheEntry = this.db.prepare('SELECT * FROM cache WHERE path = ?').get(path) as {
+            path: string;
+            cachedPath: string;
+            size: number;
+            lastAccess: number;
+        };
         try {
-            const { size } = await promisify(stat)(this.cache[path].cachedPath);
+            if (!cacheEntry) {
+                return this.read(path, content);
+            }
 
-            this.cache[path].lastAccess = Date.now();
+            const { size } = await promisify(stat)(cacheEntry.cachedPath);
 
+            this.db.prepare('UPDATE cache SET lastAccess = ? WHERE path = ?').run(Date.now(), path);
             if (content === 'buffer') {
                 return {
                     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-                    file: (await promisify(readFile)(this.cache[path].cachedPath)) as any,
+                    file: (await promisify(readFile)(cacheEntry.cachedPath)) as any,
                     size,
                 };
             }
 
             return {
                 // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-                file: createReadStream(this.cache[path].cachedPath)
+                file: createReadStream(cacheEntry.cachedPath)
                     // Do not kill the process (and crash the server) if the stream emits an error.
                     // Note: users can still add other listeners to the stream to "catch" the error.
                     // Note: error streams are unlikely to occur (most "createWriteStream" errors are simply thrown).
@@ -79,9 +102,8 @@ export abstract class CachedDisk<D extends Disk> extends Disk {
         } catch (error: any) {
             // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
             if (error.code === 'ENOENT') {
-                await promisify(unlink)(this.cache[path].cachedPath).catch(() => {});
-                this.size -= this.cache[path].size;
-                delete this.cache[path];
+                await promisify(unlink)(cacheEntry.cachedPath).catch(() => {});
+                this.db.prepare('DELETE FROM cache WHERE path = ?').run(path);
                 return this.read(path, content);
             }
             // TODO: test this line.
@@ -95,9 +117,13 @@ export abstract class CachedDisk<D extends Disk> extends Disk {
     ): Promise<void> {
         const { file, size } = await content;
 
-        if (!!this.isCleaning && this.size + size > Config.get('cache.maxSize', 'number', 1000000000)) {
+        if (
+            !!this.isCleaning &&
+            (this.db.prepare('SELECT * FROM size').get() as number) + size >
+                Config.get('cache.maxSize', 'number', 1000000000)
+        ) {
             this.cleanCache().catch(() => {
-                this.size = Object.keys(this.cache).reduce((acc, path) => acc + this.cache[path].size, 0);
+                this.db.prepare('UPDATE cacheSize SET size = (SELECT SUM(size) FROM cache)').run();
                 this.isCleaning = false;
             });
         }
@@ -111,28 +137,21 @@ export abstract class CachedDisk<D extends Disk> extends Disk {
             await promisify(pipeline)(file, createWriteStream(cachedPath));
         }
 
-        this.cache[path] = { cachedPath, size, lastAccess: Date.now() };
+        this.db.prepare('UPDATE cacheSize SET size = size + ?').run(size);
+        this.db.prepare('INSERT OR REPLACE INTO cache VALUES (?, ?, ?, ?)').run(path, cachedPath, size, Date.now());
     }
 
     private async cleanCache(): Promise<void> {
         if (this.isCleaning) return;
         this.isCleaning = true;
 
-        const cache = Object.keys(this.cache)
-            .map(path => ({ path, ...this.cache[path] }))
-            .sort((a, b) => a.lastAccess - b.lastAccess);
-
-        let cacheSize = cache.reduce((acc, { size }) => acc + size, 0);
-
-        while (cacheSize > Config.get('cache.maxSize', 'number', 1000000000) * 0.75) {
-            const toDelete = cache.shift();
+        while (this.db.prepare('SELECT * FROM size').get() > Config.get('cache.maxSize', 'number', 1000000000) * 0.75) {
+            const toDelete = this.db.prepare('SELECT * FROM cache ORDER BY lastAccess ASC LIMIT 1').get() as CacheEntry;
             if (!toDelete) break;
             await promisify(unlink)(toDelete.cachedPath);
-            delete this.cache[toDelete.path];
-            cacheSize -= toDelete.size;
+            this.db.prepare('DELETE FROM cache WHERE path = ?').run(toDelete.path);
+            this.db.prepare('UPDATE cacheSize SET size = size - ?').run(toDelete.size);
         }
-
-        this.size = cacheSize;
 
         this.isCleaning = false;
     }
