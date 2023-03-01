@@ -1,5 +1,5 @@
 {
-    "name": "cached-disk-foal",
+    "name": "@l0tze/cached-disk-foal",
     "version": "0.1.0",
     "description": "Cached Disk for FoalTS",
     "main": "lib/index.js",
