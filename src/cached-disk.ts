@@ -1,11 +1,11 @@
 import { Config } from '@foal/core';
 import { Disk } from '@foal/storage';
-import Database = require('better-sqlite3');
 import { randomUUID } from 'crypto';
 import { createReadStream, createWriteStream, readFile, stat, unlink, writeFile } from 'fs';
 import { join } from 'path';
 import { pipeline, Readable } from 'stream';
 import { promisify } from 'util';
+import Database = require('better-sqlite3');
 
 type Type<C extends 'buffer' | 'stream'> = C extends 'buffer' ? Buffer : C extends 'stream' ? Readable : never;
 type CacheEntry = { path: string; cachedPath: string; size: number; lastAccess: number };
@@ -14,15 +14,18 @@ export abstract class CachedDisk<D extends Disk> extends Disk {
     protected abstract disk: D;
 
     private isCleaning = false;
-    private db = new Database('cache/cache.db');
 
-    boot() {
-        this.db.pragma('journal_mode = WAL');
-        this.db.exec(
+    private _db: Database.Database | undefined;
+    private get db() {
+        if (this._db) return this._db;
+        this._db = new Database(this.getPath(Config.get('settings.disk.cache.dbName', 'string', 'cache.db')));
+        this._db.pragma('journal_mode = WAL');
+        this._db.exec(
             'CREATE TABLE IF NOT EXISTS cache (path TEXT PRIMARY KEY, cachedPath TEXT, size INTEGER, lastAccess INTEGER)'
         );
-        this.db.exec('CREATE TABLE IF NOT EXISTS cacheSize (id NUMBER PRIMARY KEY, size INTEGER)');
-        this.db.exec('INSERT OR IGNORE INTO cacheSize VALUES (1, 0)');
+        this._db.exec('CREATE TABLE IF NOT EXISTS cacheSize (id NUMBER PRIMARY KEY, size INTEGER)');
+        this._db.exec('INSERT OR IGNORE INTO cacheSize VALUES (1, 0)');
+        return this._db;
     }
 
     write(
@@ -61,7 +64,7 @@ export abstract class CachedDisk<D extends Disk> extends Disk {
     delete(path: string): Promise<void> {
         const cacheEntry = this.isCached(path);
         if (cacheEntry) {
-            void promisify(unlink)(cacheEntry.cachedPath).catch(() => {});
+            void promisify(unlink)(this.getPath(cacheEntry.cachedPath)).catch(() => {});
             this.db.prepare('DELETE FROM cache WHERE path = ?').run(path);
             this.db.prepare('UPDATE cacheSize SET size = size - ?').run(cacheEntry.size);
         }
@@ -98,20 +101,20 @@ export abstract class CachedDisk<D extends Disk> extends Disk {
                 return this.read(path, content);
             }
 
-            const { size } = await promisify(stat)(cacheEntry.cachedPath);
+            const { size } = await promisify(stat)(this.getPath(cacheEntry.cachedPath));
 
             this.db.prepare('UPDATE cache SET lastAccess = ? WHERE path = ?').run(Date.now(), path);
             if (content === 'buffer') {
                 return {
                     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-                    file: (await promisify(readFile)(cacheEntry.cachedPath)) as any,
+                    file: (await promisify(readFile)(this.getPath(cacheEntry.cachedPath))) as any,
                     size,
                 };
             }
 
             return {
                 // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-                file: createReadStream(cacheEntry.cachedPath)
+                file: createReadStream(this.getPath(cacheEntry.cachedPath))
                     // Do not kill the process (and crash the server) if the stream emits an error.
                     // Note: users can still add other listeners to the stream to "catch" the error.
                     // Note: error streams are unlikely to occur (most "createWriteStream" errors are simply thrown).
@@ -123,7 +126,7 @@ export abstract class CachedDisk<D extends Disk> extends Disk {
             // ? If the file does not exist, delete the cache entry and read the file from the disk.
             // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
             if (error.code === 'ENOENT') {
-                await promisify(unlink)(cacheEntry.cachedPath).catch(() => {});
+                await promisify(unlink)(this.getPath(cacheEntry.cachedPath)).catch(() => {});
                 this.db.prepare('DELETE FROM cache WHERE path = ?').run(path);
                 return this.read(path, content);
             }
@@ -146,7 +149,7 @@ export abstract class CachedDisk<D extends Disk> extends Disk {
         if (
             !!this.isCleaning &&
             (this.db.prepare('SELECT size FROM cacheSize').get() as number) + size >
-                Config.get('cache.maxSize', 'number', 1000000000)
+                Config.get('settings.disk.cache.maxSize', 'number', 1000000000)
         ) {
             this.cleanCache().catch(() => {
                 this.db.prepare('UPDATE cacheSize SET size = (SELECT SUM(size) FROM cache)').run();
@@ -155,7 +158,7 @@ export abstract class CachedDisk<D extends Disk> extends Disk {
         }
 
         const name = randomUUID();
-        const cachedPath = join(Config.get('cache.path', 'string', 'cache'), name);
+        const cachedPath = this.getPath(name);
 
         if (file instanceof Buffer) {
             await promisify(writeFile)(cachedPath, file);
@@ -164,7 +167,7 @@ export abstract class CachedDisk<D extends Disk> extends Disk {
         }
 
         this.db.prepare('UPDATE cacheSize SET size = size + ?').run(size);
-        this.db.prepare('INSERT OR REPLACE INTO cache VALUES (?, ?, ?, ?)').run(path, cachedPath, size, Date.now());
+        this.db.prepare('INSERT OR REPLACE INTO cache VALUES (?, ?, ?, ?)').run(path, name, size, Date.now());
     }
 
     /**
@@ -180,11 +183,20 @@ export abstract class CachedDisk<D extends Disk> extends Disk {
         ) {
             const toDelete = this.db.prepare('SELECT * FROM cache ORDER BY lastAccess ASC LIMIT 1').get() as CacheEntry;
             if (!toDelete) break;
-            await promisify(unlink)(toDelete.cachedPath);
+            await promisify(unlink)(this.getPath(toDelete.cachedPath));
             this.db.prepare('DELETE FROM cache WHERE path = ?').run(toDelete.path);
             this.db.prepare('UPDATE cacheSize SET size = size - ?').run(toDelete.size);
         }
 
         this.isCleaning = false;
+    }
+
+    private getPath(path: string): string {
+        const directory = Config.getOrThrow(
+            'settings.disk.cache.directory',
+            'string',
+            'You must provide a directory name when using cached storage (CachedDisk).'
+        );
+        return join(directory, path);
     }
 }
