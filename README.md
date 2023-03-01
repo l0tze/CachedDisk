@@ -4,6 +4,10 @@ This is a simple caching layer for [FoalTS Disk](https://foalts.org/docs/common/
 It stores files in local storage after they are first accessed.
 It keeps track of the cached files and the cache size in a sqlite database.
 
+## BE AWARE
+
+If a file is modified and already cached, the cache is not updated. This means that the file will be read from the cache and not from the disk.
+
 ## How it works
 
 The cache is a simple LRU cache. It stores the files in a local directory. The cache size is limited by the `cacheSize` option.
