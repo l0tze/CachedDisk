@@ -9,7 +9,7 @@
     },
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/erkoware/cached-disk-foal.git"
+        "url": "git+https://github.com/l0tze/CachedDiskFoal.git"
     },
     "keywords": [
         "cache",
@@ -19,9 +19,9 @@
     "author": "l0tze",
     "license": "ISC",
     "bugs": {
-        "url": "https://github.com/erkoware/cached-disk-foal/issues"
+        "url": "https://github.com/l0tze/CachedDiskFoal.git"
     },
-    "homepage": "https://github.com/erkoware/cached-disk-foal#readme",
+    "homepage": "https://github.com/l0tze/CachedDiskFoal.git",
     "engines": {
         "node": ">=16.0.0"
     },
