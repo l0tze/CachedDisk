@@ -1,15 +1,18 @@
 {
-    "name": "@erkoware/cached-disk-foal",
+    "name": "cached-disk-foal",
     "version": "0.1.0",
     "description": "Cached Disk for FoalTS",
     "main": "lib/index.js",
+    "files": [
+        "lib/"
+    ],
     "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1",
-        "build": "tsc"
+        "build": "tsc",
+        "test": "mocha 'lib/*.spec.js'"
     },
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/erkoware/cached-disk-foal.git"
+        "url": "https://github.com/l0tze/cached-disk-foal.git"
     },
     "keywords": [
         "cache",
@@ -19,25 +22,29 @@
     "author": "l0tze",
     "license": "ISC",
     "bugs": {
-        "url": "https://github.com/erkoware/cached-disk-foal/issues"
+        "url": "https://github.com/l0tze/cached-disk-foal.git"
     },
-    "homepage": "https://github.com/erkoware/cached-disk-foal#readme",
+    "homepage": "https://github.com/l0tze/cached-disk-foal.git",
     "engines": {
         "node": ">=16.0.0"
     },
     "devDependencies": {
+        "@types/better-sqlite3": "^7.6.3",
+        "@types/mocha": "^10.0.1",
         "@types/node": "^18.14.2",
-        "eslint": "8.35.0",
-        "typescript": "^4.9.5",
-        "prettier": "2.8.4",
         "@typescript-eslint/eslint-plugin": "5.53.0",
         "@typescript-eslint/parser": "5.53.0",
+        "eslint": "8.35.0",
         "eslint-config-prettier": "8.6.0",
+        "eslint-plugin-node": "11.1.0",
         "eslint-plugin-prettier": "4.2.1",
-        "eslint-plugin-node": "11.1.0"
+        "mocha": "^10.2.0",
+        "prettier": "2.8.4",
+        "typescript": "^4.9.5"
     },
     "dependencies": {
         "@foal/core": "^3.0.0",
-        "@foal/storage": "^3.0.0"
+        "@foal/storage": "^3.0.0",
+        "better-sqlite3": "^8.1.0"
     }
 }
