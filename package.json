@@ -3,6 +3,9 @@
     "version": "0.1.0",
     "description": "Cached Disk for FoalTS",
     "main": "lib/index.js",
+    "files": [
+        "lib/"
+    ],
     "scripts": {
         "build": "tsc",
         "test": "mocha 'lib/*.spec.js'"
@@ -30,9 +33,7 @@
         "@types/mocha": "^10.0.1",
         "@types/node": "^18.14.2",
         "@typescript-eslint/eslint-plugin": "5.53.0",
-        "@typescript-eslint
-        cached-disk-foal
-        /parser": "5.53.0",
+        "@typescript-eslint/parser": "5.53.0",
         "eslint": "8.35.0",
         "eslint-config-prettier": "8.6.0",
         "eslint-plugin-node": "11.1.0",
