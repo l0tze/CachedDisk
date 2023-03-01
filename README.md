@@ -8,6 +8,8 @@ It keeps track of the cached files and the cache size in a sqlite database.
 
 If a file is modified and already cached, the cache is not updated. This means that the file will be read from the cache and not from the disk.
 
+This also applies if a file is deleted without using the `delete` method of the CachedDisk.
+
 ## How it works
 
 The cache is a simple LRU cache. It stores the files in a local directory. The cache size is limited by the `cacheSize` option.
