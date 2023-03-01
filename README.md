@@ -35,17 +35,66 @@ While still keeping our application stateless.
 
 ## Usage
 
+### Prerequisites
+
+read the [documentation](https://foalts.org/docs/common/file-storage/local-and-cloud-storage) from FoalTS on File Storage.
+
 ```bash
 npm install --save @erkoware/cached-disk-foal
 ```
+
+### As a specific disk
 
 ```typescript
 export class CachedLocalDisk extends CachedDisk<LocalDisk> {
     @dependency
     disk: LocalDisk;
 }
+```
+
+```typescript
+class FooController {
+    @dependency
+    cachedDisk: CachedLocalDisk;
+
+    async bar() {
+        const { file } = await this.disk.read('path/to/file');
+        // ...
+    }
+}
+```
+
+### As default disk
+
+```typescript
+// driver: app/services/cached-local-disk.service.ts
+export class CachedLocalDisk extends CachedDisk<LocalDisk> {
+    @dependency
+    disk: LocalDisk;
+}
 
 export { CachedLocalDisk as ConcreteDisk }
+```
+
+```javascript
+// config/default.js
+settings: {
+    disk: {
+        driver: "./app/services/cached-local-disk.service",
+    }
+}
+```
+
+```typescript
+class FooController {
+    @dependency
+    disk: Disk;
+
+    async bar() {
+        const { file } = await this.disk.read('path/to/file');
+        // ...
+    }
+}
 ```
 
 For more information, see the [documentation](https://foalts.org/docs/common/file-storage/local-and-cloud-storage#implementing-a-disk).
