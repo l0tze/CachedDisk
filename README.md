@@ -1,4 +1,6 @@
-# CachedDisk
+# CachedDisk [MOVED](https://github.com/erkoware/foalts-cached-disk.git)
+
+This package is now maintained by [erkoware](https://github.com/erkoware)
 
 This is a simple caching layer for [FoalTS Disk](https://foalts.org/docs/common/file-storage/local-and-cloud-storage).
 It stores files in local storage after they are first accessed.
